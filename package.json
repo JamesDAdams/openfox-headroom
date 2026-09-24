@@ -1,0 +1,41 @@
+{
+  "name": "openfox-headroom",
+  "version": "1.0.0",
+  "description": "Headroom native context compression plugin for OpenFox",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "openfox": {
+    "apiVersion": 2,
+    "displayName": "Headroom Compression",
+    "author": "James Adams",
+    "icon": "https://avatars.githubusercontent.com/u/294291659?s=60&v=4",
+    "logo": "https://avatars.githubusercontent.com/u/294291659?s=60&v=4",
+    "description": "Native context compression for OpenFox using Headroom proxy to optimize tokens and reduce costs without breaking prefix caching.",
+    "entry": "./dist/index.js",
+    "capabilities": [
+      "transforms",
+      "settings",
+      "rpc",
+      "ui"
+    ],
+    "timeoutMs": 15000
+  },
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run --passWithNoTests",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.0",
+    "tsup": "^8.4.0",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.0"
+  },
+  "license": "MIT",
+  "author": "James Adams"
+}
