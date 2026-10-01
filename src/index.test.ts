@@ -87,17 +87,18 @@ describe('openfox-headroom plugin', () => {
       }),
     )
 
+    expect(calls.action).toMatchObject({
+      slot: 'plugin.menu',
+      onActivate: { kind: 'openPanel', panelId: 'headroom-dashboard' },
+    })
+
+    const showHeaderButton = calls.settings.fields.find((f: any) => f.key === 'showHeaderButton')
+    expect(showHeaderButton?.default).toBe(false)
+
     expect(registry.registerUiComponent).toHaveBeenCalledWith(
       expect.objectContaining({
         id: 'headroom-stats-summary',
         zone: 'stats.modal.summary',
-      }),
-    )
-
-    expect(registry.registerSettingsTab).toHaveBeenCalledWith(
-      expect.objectContaining({
-        id: 'headroom-tab',
-        label: { en: 'Headroom', fr: 'Headroom' },
       }),
     )
 
@@ -192,6 +193,43 @@ describe('openfox-headroom plugin', () => {
         children: [],
       }),
     )
+  })
+
+  it('registers an empty header slot when showHeaderButton is false', () => {
+    mockSettings['showHeaderButton'] = false
+    vi.spyOn(client, 'checkHeadroomAvailability').mockReturnValue(new Promise(() => {}) as any)
+
+    register(registry)
+
+    expect(calls['component_headroom-header-btn'].component).toEqual({
+      type: 'stack',
+      direction: 'row',
+      children: [],
+    })
+  })
+
+  it('re-registers the header button when showHeaderButton changes', async () => {
+    mockSettings['showHeaderButton'] = true
+    vi.spyOn(client, 'checkHeadroomAvailability').mockResolvedValue({
+      available: true,
+      installed: true,
+      running: true,
+      version: '0.37.0',
+      proxyUrl: 'http://127.0.0.1:8787',
+    })
+
+    register(registry)
+    await calls.rpc_refreshStatus()
+    expect(calls['component_headroom-header-btn'].component.type).toBe('button')
+
+    mockSettings['showHeaderButton'] = false
+    await calls.rpc_refreshStatus()
+
+    expect(calls['component_headroom-header-btn'].component).toEqual({
+      type: 'stack',
+      direction: 'row',
+      children: [],
+    })
   })
 
   it('launches proxy on startup when autoStart is true', async () => {

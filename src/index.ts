@@ -45,6 +45,12 @@ export interface SessionTokenStats {
 
 const sessionStatsMap = new Map<string, SessionTokenStats>()
 let pollInterval: NodeJS.Timeout | null = null
+let activeRegistry: PluginRegistry | null = null
+
+function readShowHeaderButton(context: PluginContext): boolean {
+  const settings = context.settings() ?? {}
+  return settings['showHeaderButton'] !== false
+}
 
 function getHeaderComponent(running: boolean, show: boolean) {
   if (!show) {
@@ -82,11 +88,18 @@ async function updateLiveStatus(context: PluginContext, customUrl?: string): Pro
         ? settings['proxyUrl'].trim().replace(/\/+$/, '')
         : DEFAULT_HEADROOM_URL)
 
-    const showHeader = settings['showHeaderButton'] !== false
+    const showHeader = readShowHeaderButton(context)
     const status = await checkHeadroomAvailability(proxyUrl)
 
     // Update header button with green/red dot
     const headerNode = getHeaderComponent(status.running, showHeader)
+    // Keep the registered node in sync: a client that loads later renders it as-is,
+    // so a stale node shows a header button the user disabled.
+    activeRegistry?.registerUiComponent({
+      id: 'headroom-header-btn',
+      zone: 'header.actions',
+      component: headerNode,
+    })
     context.publish('headroom-header-btn', 'content', headerNode)
 
     // Update settings tab status card
@@ -165,7 +178,7 @@ export function register(registry: PluginRegistry): void {
           en: 'Show a quick-access button with live status dot in the OpenFox header bar.',
           fr: 'Affiche un bouton d’accès rapide avec pastille d’état dans l’en-tête OpenFox.',
         },
-        default: true,
+        default: false,
       },
       {
         key: 'autoStart',
@@ -305,11 +318,20 @@ export function register(registry: PluginRegistry): void {
     size: '3xl',
   })
 
+  // Plugins menu row: clicking the plugin name opens the same dashboard as the header button.
+  registry.registerUiAction({
+    id: 'headroom-menu',
+    slot: 'plugin.menu',
+    label: { en: 'Headroom Compression', fr: 'Headroom Compression' },
+    onActivate: { kind: 'openPanel', panelId: 'headroom-dashboard' },
+  })
+
   // 4. Header UI Component (with live green/red dot)
+  activeRegistry = registry
   registry.registerUiComponent({
     id: 'headroom-header-btn',
     zone: 'header.actions',
-    component: getHeaderComponent(false, true),
+    component: getHeaderComponent(false, readShowHeaderButton(context)),
   })
 
   // 5. Session Stats Summary UI Component
@@ -336,91 +358,7 @@ export function register(registry: PluginRegistry): void {
     },
   })
 
-  // 6. Headroom Management Settings Tab
-  registry.registerSettingsTab({
-    id: 'headroom-tab',
-    label: { en: 'Headroom', fr: 'Headroom' },
-    icon: 'puzzle',
-    content: [
-      {
-        type: 'card',
-        title: { en: 'Headroom Proxy Daemon', fr: 'Démon Proxy Headroom' },
-        subtitle: {
-          en: 'Manage the local Headroom compression service and monitor live status.',
-          fr: 'Gérez le service local de compression Headroom et surveillez son état en direct.',
-        },
-        children: [
-          {
-            type: 'stack',
-            direction: 'row',
-            align: 'center',
-            justify: 'between',
-            children: [
-              {
-                type: 'text',
-                text: { en: 'Status: {{statusText}}', fr: 'Statut : {{statusText}}' },
-              },
-              {
-                type: 'button',
-                label: { en: 'Open Dashboard', fr: 'Ouvrir le tableau de bord' },
-                variant: 'default',
-                icon: 'external',
-                onActivate: {
-                  kind: 'openPanel',
-                  panelId: 'headroom-dashboard',
-                },
-              },
-            ],
-          },
-          { type: 'divider' },
-          {
-            type: 'stack',
-            direction: 'row',
-            gap: 'sm',
-            children: [
-              {
-                type: 'button',
-                label: { en: 'Start', fr: 'Démarrer' },
-                variant: 'primary',
-                icon: 'play',
-                onActivate: { kind: 'rpc', method: 'startProxy' },
-              },
-              {
-                type: 'button',
-                label: { en: 'Stop', fr: 'Arrêter' },
-                variant: 'danger',
-                icon: 'trash',
-                onActivate: { kind: 'rpc', method: 'stopProxy' },
-              },
-              {
-                type: 'button',
-                label: { en: 'Restart', fr: 'Redémarrer' },
-                variant: 'default',
-                icon: 'refresh',
-                onActivate: { kind: 'rpc', method: 'restartProxy' },
-              },
-              {
-                type: 'button',
-                label: { en: 'Install CLI', fr: 'Installer la CLI' },
-                variant: 'default',
-                icon: 'download',
-                onActivate: { kind: 'rpc', method: 'installCli' },
-              },
-              {
-                type: 'button',
-                label: { en: 'Check Status', fr: 'Vérifier l’état' },
-                variant: 'ghost',
-                icon: 'refresh',
-                onActivate: { kind: 'rpc', method: 'refreshStatus' },
-              },
-            ],
-          },
-        ],
-      },
-    ],
-  })
-
-  // 7. Process Management & Health RPCs
+  // 6. Process Management & Health RPCs
   registry.registerRpc('startProxy', async () => {
     const settings = context.settings() ?? {}
     const proxyUrl =
